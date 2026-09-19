@@ -106,7 +106,7 @@ export default function ReceiptPage() {
       <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
         <div
           ref={receiptRef}
-          style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", background: "#ffffff", padding: "24px", borderRadius: "28px", maxWidth: "420px", width: "420px", margin: "0 auto" }}
+          style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", background: "#ffffff", padding: "24px", borderRadius: "28px", maxWidth: "420px", width: "420px", margin: "0" }}
         >
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
