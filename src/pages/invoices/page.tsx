@@ -72,9 +72,9 @@ export default function InvoicesPage() {
     mutationFn: (id: string) => api.delete("/invoices/" + id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices"] }),
   });
-  const markPaid = useMutation({
-    mutationFn: ({ id, paymentDate, paymentNote }: { id: string; paymentDate: string; paymentNote?: string }) =>
-      api.post("/invoices/" + id + "/mark-paid", { paymentDate, paymentNote }),
+  const recordPayment = useMutation({
+    mutationFn: ({ id, amount, paymentDate, paymentNote }: { id: string; amount: number; paymentDate: string; paymentNote?: string }) =>
+      api.post("/invoices/" + id + "/payments", { amount, date: paymentDate, note: paymentNote }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices"] }),
   });
 
@@ -86,10 +86,18 @@ export default function InvoicesPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(todayISO());
   const [payNote, setPayNote] = useState("");
   const [paySaving, setPaySaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const openPayDialog = (inv: NonNullable<typeof invoices>[number]) => {
+    setPayingId(inv._id);
+    setPayAmount(String(inv.remaining ?? 0));
+    setPayDate(todayISO());
+    setPayNote("");
+  };
 
   const openAdd = () => {
     setForm({ customerId: "", number: "", date: todayISO(), note: "", items: [{ ...EMPTY_ITEM }] });
@@ -136,16 +144,18 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleMarkPaid = async () => {
+  const handleRecordPayment = async () => {
     if (!payingId) return;
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
     setPaySaving(true);
     try {
-      await markPaid.mutateAsync({ id: payingId, paymentDate: payDate, paymentNote: payNote || undefined });
-      toast.success("Invoice marked as paid");
+      await recordPayment.mutateAsync({ id: payingId, amount, paymentDate: payDate, paymentNote: payNote || undefined });
+      toast.success("Payment recorded");
       setPayingId(null);
       setPayNote("");
-    } catch {
-      toast.error("Failed to mark as paid");
+    } catch (e) {
+      toast.error((e as { error?: string })?.error ?? "Failed to record payment");
     } finally {
       setPaySaving(false);
     }
@@ -188,8 +198,10 @@ export default function InvoicesPage() {
                   No: inv.number,
                   Customer: inv.customer?.username ?? "",
                   Total: inv.total,
+                  Paid: inv.paid ? inv.total : (inv.amountPaid ?? 0),
+                  Remaining: inv.remaining ?? inv.total,
                   Date: inv.date,
-                  Status: inv.paid ? "Paid" : "Unpaid",
+                  Status: inv.paid ? "Paid" : (inv.amountPaid ?? 0) > 0 ? "Partial" : "Unpaid",
                   Note: inv.note ?? "",
                 })),
                 `invoices-${todayISO()}.csv`
@@ -238,7 +250,9 @@ export default function InvoicesPage() {
             <p className="text-muted-foreground text-sm py-4 text-center">No outstanding invoices.</p>
           ) : (
             <div className="divide-y">
-              {unpaid.map((inv) => (
+              {unpaid.map((inv) => {
+                const isPartial = (inv.amountPaid ?? 0) > 0;
+                return (
                 <div key={inv._id} className="flex items-center justify-between py-3">
                   <div>
                     <p className="font-semibold text-sm">{inv.customer?.username ?? "?"}</p>
@@ -246,9 +260,17 @@ export default function InvoicesPage() {
                       {inv.number} · {formatDate(inv.date)}
                       {inv.note ? ` · ${inv.note}` : ""}
                     </p>
+                    {isPartial && (
+                      <p className="text-xs text-amber-600 font-medium">
+                        {formatAmount(inv.amountPaid ?? 0, settings)} paid of {formatAmount(inv.total, settings)}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 sm:gap-3 flex-wrap justify-end">
-                    <span className="font-bold">{formatAmount(inv.total, settings)}</span>
+                    <div className="text-right">
+                      <span className="font-bold">{formatAmount(inv.remaining ?? inv.total, settings)}</span>
+                      {isPartial && <p className="text-xs text-muted-foreground">remaining</p>}
+                    </div>
                     <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => openEdit(inv)}>
                       <Pencil className="w-3 h-3" />
                     </Button>
@@ -259,13 +281,14 @@ export default function InvoicesPage() {
                       <FileText className="w-3 h-3 sm:mr-1" />
                       <span className="hidden sm:inline">View</span>
                     </Button>
-                    <Button size="sm" className="cursor-pointer" onClick={() => { setPayingId(inv._id); setPayDate(todayISO()); setPayNote(""); }}>
+                    <Button size="sm" className="cursor-pointer" onClick={() => openPayDialog(inv)}>
                       <CheckCircle className="w-3 h-3 sm:mr-1" />
-                      <span className="hidden sm:inline">Mark Paid</span>
+                      <span className="hidden sm:inline">Record Payment</span>
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -395,13 +418,30 @@ export default function InvoicesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Payment Dialog */}
+      {/* Record Payment Dialog */}
       <Dialog open={!!payingId} onOpenChange={(v) => !v && setPayingId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Payment</DialogTitle>
+            <DialogTitle>Record Payment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+              />
+              {payingId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Remaining balance: {
+                    (() => { const inv = invoices?.find((x) => x._id === payingId); return inv ? formatAmount(inv.remaining ?? inv.total, settings) : "—"; })()
+                  }
+                </p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <Label>Payment Date</Label>
               <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
@@ -413,8 +453,8 @@ export default function InvoicesPage() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPayingId(null)}>Cancel</Button>
-            <Button onClick={handleMarkPaid} disabled={paySaving} className="cursor-pointer">
-              {paySaving ? "Saving..." : "Confirm Payment"}
+            <Button onClick={handleRecordPayment} disabled={paySaving} className="cursor-pointer">
+              {paySaving ? "Saving..." : "Record Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>

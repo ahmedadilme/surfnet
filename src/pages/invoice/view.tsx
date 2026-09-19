@@ -1,21 +1,50 @@
 import { useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api.ts";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Share2, Wifi } from "lucide-react";
-import { formatDate } from "@/lib/utils.ts";
+import { ArrowLeft, Download, Share2, Wifi, Plus, Trash2, CheckCircle } from "lucide-react";
+import { formatDate, todayISO } from "@/lib/utils.ts";
 import { useSettings, formatAmount } from "@/hooks/use-settings.ts";
 import { toPng } from "html-to-image";
 
 export default function InvoiceViewPage() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const docRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const settings = useSettings();
+
+  const recordPayment = useMutation({
+    mutationFn: ({ amount, date, note }: { amount: number; date: string; note?: string }) =>
+      api.post(`/invoices/${invoiceId!}/payments`, { amount, date, note }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] }),
+  });
+  const removePayment = useMutation({
+    mutationFn: (id: string) => api.delete("/payments/" + id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] }),
+  });
+
+  const [payOpen, setPayOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payDate, setPayDate] = useState(todayISO());
+  const [payNote, setPayNote] = useState("");
+  const [paySaving, setPaySaving] = useState(false);
+  const [deletePayId, setDeletePayId] = useState<string | null>(null);
+  const [deletePaySaving, setDeletePaySaving] = useState(false);
 
   const { data: invoice } = useQuery({
     queryKey: ["invoices", invoiceId],
@@ -82,6 +111,46 @@ export default function InvoiceViewPage() {
   }
 
   const { customer } = invoice;
+  const total = invoice.total ?? 0;
+  const paidAmount = invoice.amountPaid ?? 0;
+  const remaining = invoice.remaining ?? Math.max(total - paidAmount, 0);
+
+  const openPayDialog = () => {
+    setPayAmount(String(remaining || 0));
+    setPayDate(todayISO());
+    setPayNote("");
+    setPayOpen(true);
+  };
+
+  const handleRecordPayment = async () => {
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
+    setPaySaving(true);
+    try {
+      await recordPayment.mutateAsync({ amount, date: payDate, note: payNote || undefined });
+      toast.success("Payment recorded");
+      setPayOpen(false);
+      setPayNote("");
+    } catch (e) {
+      toast.error((e as { error?: string })?.error ?? "Failed to record payment");
+    } finally {
+      setPaySaving(false);
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!deletePayId) return;
+    setDeletePaySaving(true);
+    try {
+      await removePayment.mutateAsync(deletePayId);
+      toast.success("Payment removed");
+      setDeletePayId(null);
+    } catch {
+      toast.error("Failed to remove payment");
+    } finally {
+      setDeletePaySaving(false);
+    }
+  };
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
@@ -140,12 +209,26 @@ export default function InvoiceViewPage() {
               borderRadius: "999px",
               fontSize: "13px",
               fontWeight: 700,
-              background: invoice.paid ? "#dcfce7" : "#fef3c7",
-              color: invoice.paid ? "#16a34a" : "#d97706",
+              background: invoice.paid ? "#dcfce7" : paidAmount > 0 ? "#e0e7ff" : "#fef3c7",
+              color: invoice.paid ? "#16a34a" : paidAmount > 0 ? "#4338ca" : "#d97706",
             }}>
-              {invoice.paid ? "Paid" : "Unpaid"}
+              {invoice.paid ? "Paid" : paidAmount > 0 ? "Partially paid" : "Unpaid"}
             </span>
           </div>
+
+          {/* Paid summary */}
+          {paidAmount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", marginBottom: "20px" }}>
+              <div style={{ background: "#f0fdf4", borderRadius: "16px", padding: "14px", flex: 1 }}>
+                <p style={{ margin: 0, fontSize: "11px", color: "#16a34a", fontWeight: 700 }}>PAID</p>
+                <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#16a34a" }}>{formatAmount(paidAmount, settings)}</p>
+              </div>
+              <div style={{ background: "#fff7ed", borderRadius: "16px", padding: "14px", flex: 1 }}>
+                <p style={{ margin: 0, fontSize: "11px", color: "#d97706", fontWeight: 700 }}>REMAINING</p>
+                <p style={{ margin: "4px 0 0", fontSize: "16px", fontWeight: 800, color: "#d97706" }}>{formatAmount(remaining, settings)}</p>
+              </div>
+            </div>
+          )}
 
           {/* Customer Info */}
           <div style={{ background: "#f5f7ff", borderRadius: "24px", padding: "24px", marginBottom: "24px" }}>
@@ -228,6 +311,109 @@ export default function InvoiceViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment History (excluded from PNG export) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between w-full">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              Payment History
+              {invoice.payments?.length ? ` (${invoice.payments.length})` : ""}
+            </CardTitle>
+            {remaining > 0 && (
+              <Button size="sm" className="cursor-pointer" onClick={openPayDialog}>
+                <Plus className="w-3 h-3 mr-1" /> Record Payment
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!invoice.payments?.length ? (
+            <p className="text-muted-foreground text-sm py-4 text-center">
+              {remaining > 0
+                ? "No payments recorded yet. Remaining: " + formatAmount(remaining, settings)
+                : "No payments recorded."}
+            </p>
+          ) : (
+            <div className="divide-y">
+              {invoice.payments.map((pmt) => (
+                <div key={pmt._id} className="flex items-center justify-between py-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">{formatAmount(pmt.amount, settings)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(pmt.date)}
+                      {pmt.note ? ` · ${pmt.note}` : ""}
+                      {pmt.user?.name ? ` · by ${pmt.user.name}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="cursor-pointer text-destructive hover:text-destructive"
+                    onClick={() => setDeletePayId(pmt._id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={payOpen} onOpenChange={setPayOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
+              <Input type="number" min="0" placeholder="0.00" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">Remaining balance: {formatAmount(remaining, settings)}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Payment Date</Label>
+              <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Note (optional)</Label>
+              <Input placeholder="e.g. Cash received, bank transfer..." value={payNote} onChange={(e) => setPayNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPayOpen(false)}>Cancel</Button>
+            <Button onClick={handleRecordPayment} disabled={paySaving} className="cursor-pointer">
+              {paySaving ? "Saving..." : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Payment Confirmation */}
+      <Dialog open={!!deletePayId} onOpenChange={(v) => !v && setDeletePayId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Payment</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to remove this payment? The invoice balance will be recalculated.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeletePayId(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeletePayment}
+              disabled={deletePaySaving}
+              className="cursor-pointer"
+            >
+              {deletePaySaving ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

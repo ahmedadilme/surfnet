@@ -82,6 +82,9 @@ export default function ReceiptPage() {
   }
 
   const { customer, package: pkg } = recharge;
+  const paidAmount = recharge.amountPaid ?? 0;
+  const remaining = recharge.remaining ?? Math.max(recharge.amount - paidAmount, 0);
+  const isPartial = !recharge.paid && paidAmount > 0;
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
@@ -138,6 +141,11 @@ export default function ReceiptPage() {
             <div style={{ textAlign: "right" }}>
               <p style={{ fontSize: "12px", color: "#6b7280", margin: 0 }}>Amount</p>
               <p style={{ fontSize: "22px", fontWeight: 800, color: "#1a1a2e", margin: "2px 0 0" }}>{formatAmount(recharge.amount, settings)}</p>
+              {isPartial && (
+                <p style={{ fontSize: "12px", color: "#d97706", margin: "4px 0 0", fontWeight: 700 }}>
+                  Paid {formatAmount(paidAmount, settings)} of {formatAmount(recharge.amount, settings)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -177,10 +185,10 @@ export default function ReceiptPage() {
                 borderRadius: "999px",
                 fontSize: "13px",
                 fontWeight: 700,
-                background: recharge.paid ? "#dcfce7" : "#fef3c7",
-                color: recharge.paid ? "#16a34a" : "#d97706",
+                background: recharge.paid ? "#dcfce7" : isPartial ? "#e0e7ff" : "#fef3c7",
+                color: recharge.paid ? "#16a34a" : isPartial ? "#4338ca" : "#d97706",
               }}>
-                {recharge.paid ? "Paid" : "Unpaid"}
+                {recharge.paid ? "Paid" : isPartial ? "Partially paid" : "Unpaid"}
               </span>
             </div>
             <div style={{ background: "#f9fafb", borderRadius: "20px", padding: "20px" }}>

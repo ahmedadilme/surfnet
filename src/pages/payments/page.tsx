@@ -36,9 +36,9 @@ export default function PaymentsPage() {
     queryKey: ["packages"],
     queryFn: () => api.get("/packages"),
   });
-  const markPaid = useMutation({
-    mutationFn: ({ rechargeId, paymentDate, paymentNote }: { rechargeId: string; paymentDate: string; paymentNote?: string }) =>
-      api.post("/recharges/" + rechargeId + "/mark-paid", { paymentDate, paymentNote }),
+  const recordPayment = useMutation({
+    mutationFn: ({ rechargeId, amount, paymentDate, paymentNote }: { rechargeId: string; amount: number; paymentDate: string; paymentNote?: string }) =>
+      api.post("/recharges/" + rechargeId + "/payments", { amount, date: paymentDate, note: paymentNote }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["recharges"] }),
   });
   const markManyPaid = useMutation({
@@ -58,6 +58,7 @@ export default function PaymentsPage() {
   const navigate = useNavigate();
 
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(todayISO());
   const [payNote, setPayNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -91,16 +92,25 @@ export default function PaymentsPage() {
   const unpaid = filterRecharges(recharges?.filter((r) => !r.paid)) ?? [];
   const paid = filterRecharges(recharges?.filter((r) => r.paid)) ?? [];
 
-  const handleMarkPaid = async () => {
+  const openPayDialog = (r: NonNullable<typeof recharges>[number]) => {
+    setPayingId(r._id);
+    setPayAmount(String(r.remaining ?? 0));
+    setPayDate(todayISO());
+    setPayNote("");
+  };
+
+  const handleRecordPayment = async () => {
     if (!payingId) return;
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
     setSaving(true);
     try {
-      await markPaid.mutateAsync({ rechargeId: payingId, paymentDate: payDate, paymentNote: payNote || undefined });
-      toast.success("Marked as paid!");
+      await recordPayment.mutateAsync({ rechargeId: payingId, amount, paymentDate: payDate, paymentNote: payNote || undefined });
+      toast.success("Payment recorded!");
       setPayingId(null);
       setPayNote("");
-    } catch {
-      toast.error("Failed to mark as paid");
+    } catch (e) {
+      toast.error((e as { error?: string })?.error ?? "Failed to record payment");
     } finally {
       setSaving(false);
     }
@@ -132,8 +142,8 @@ export default function PaymentsPage() {
       });
       toast.success("Recharge updated");
       setEditRecharge(null);
-    } catch {
-      toast.error("Failed to update");
+    } catch (e) {
+      toast.error((e as { error?: string })?.error ?? "Failed to update");
     } finally {
       setEditSaving(false);
     }
@@ -187,7 +197,7 @@ export default function PaymentsPage() {
         <div>
           <h1 className="text-2xl font-bold">Payments</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Manually verify and mark payments
+            Manually verify and record payments
           </p>
         </div>
         <Button
@@ -199,8 +209,10 @@ export default function PaymentsPage() {
                 Customer: r.customer?.username ?? "",
                 Package: r.package?.name ?? "",
                 Amount: r.amount,
+                Paid: r.paid ? r.amount : (r.amountPaid ?? 0),
+                Remaining: r.remaining ?? r.amount,
                 Date: r.date,
-                Status: r.paid ? "Paid" : "Unpaid",
+                Status: r.paid ? "Paid" : (r.amountPaid ?? 0) > 0 ? "Partial" : "Unpaid",
                 Note: r.note ?? "",
               })),
               `payments-${todayISO()}.csv`
@@ -230,7 +242,7 @@ export default function PaymentsPage() {
         <p className="text-xs text-muted-foreground sm:ml-auto">{unpaid.length + paid.length} entries</p>
       </div>
 
-      {/* Unpaid */}
+      {/* Outstanding */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2">
@@ -266,63 +278,74 @@ export default function PaymentsPage() {
                 />
                 <span className="text-xs font-medium text-muted-foreground">Select All</span>
               </div>
-              {unpaid.map((r) => (
-                <div key={r._id} className="flex items-center justify-between py-3 px-4">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      className="cursor-pointer"
-                      checked={selectedIds.has(r._id)}
-                      onChange={() => toggleSelect(r._id)}
-                    />
-                    <div>
-                      <p className="font-semibold text-sm">{r.customer?.username ?? "?"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.package?.name ?? "-"} · {formatDate(r.date)}
-                        {(Date.now() - new Date(r.date).getTime()) / 86400000 > 30 && (
-                          <span className="ml-2 text-amber-600 font-medium">Overdue</span>
+              {unpaid.map((r) => {
+                const isPartial = (r.amountPaid ?? 0) > 0;
+                return (
+                  <div key={r._id} className="flex items-center justify-between py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="cursor-pointer"
+                        checked={selectedIds.has(r._id)}
+                        onChange={() => toggleSelect(r._id)}
+                      />
+                      <div>
+                        <p className="font-semibold text-sm">{r.customer?.username ?? "?"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.package?.name ?? "-"} · {formatDate(r.date)}
+                          {(Date.now() - new Date(r.date).getTime()) / 86400000 > 30 && (
+                            <span className="ml-2 text-amber-600 font-medium">Overdue</span>
+                          )}
+                        </p>
+                        {isPartial && (
+                          <p className="text-xs text-amber-600 font-medium">
+                            {formatAmount(r.amountPaid ?? 0, settings)} paid of {formatAmount(r.amount, settings)}
+                          </p>
                         )}
-                      </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-3 flex-wrap justify-end">
+                      <div className="text-right">
+                        <span className="font-bold">{formatAmount(r.remaining ?? r.amount, settings)}</span>
+                        {isPartial && <p className="text-xs text-muted-foreground">remaining</p>}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="cursor-pointer"
+                        onClick={() => openEdit(r)}
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="cursor-pointer text-destructive hover:text-destructive"
+                        onClick={() => setDeleteId(r._id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/receipt/${r._id}`)}
+                      >
+                        <FileText className="w-3 h-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Receipt</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="cursor-pointer"
+                        onClick={() => openPayDialog(r)}
+                      >
+                        <CheckCircle className="w-3 h-3 sm:mr-1" />
+                        <span className="hidden sm:inline">Record Payment</span>
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 sm:gap-3 flex-wrap justify-end">
-                    <span className="font-bold">{formatAmount(r.amount, settings)}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="cursor-pointer"
-                      onClick={() => openEdit(r)}
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="cursor-pointer text-destructive hover:text-destructive"
-                      onClick={() => setDeleteId(r._id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/receipt/${r._id}`)}
-                    >
-                      <FileText className="w-3 h-3 sm:mr-1" />
-                      <span className="hidden sm:inline">Receipt</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="cursor-pointer"
-                      onClick={() => { setPayingId(r._id); setPayDate(todayISO()); setPayNote(""); }}
-                    >
-                      <CheckCircle className="w-3 h-3 sm:mr-1" />
-                      <span className="hidden sm:inline">Mark Paid</span>
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -385,13 +408,30 @@ export default function PaymentsPage() {
         </CardContent>
       </Card>
 
-      {/* Confirm Payment Dialog */}
+      {/* Record Payment Dialog */}
       <Dialog open={!!payingId} onOpenChange={(v) => !v && setPayingId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm Payment</DialogTitle>
+            <DialogTitle>Record Payment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+              />
+              {payingId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Remaining balance: {
+                    (() => { const r = recharges?.find((x) => x._id === payingId); return r ? formatAmount(r.remaining ?? r.amount, settings) : "—"; })()
+                  }
+                </p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <Label>Payment Date</Label>
               <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
@@ -403,8 +443,8 @@ export default function PaymentsPage() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPayingId(null)}>Cancel</Button>
-            <Button onClick={handleMarkPaid} disabled={saving} className="cursor-pointer">
-              {saving ? "Saving..." : "Confirm Payment"}
+            <Button onClick={handleRecordPayment} disabled={saving} className="cursor-pointer">
+              {saving ? "Saving..." : "Record Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>

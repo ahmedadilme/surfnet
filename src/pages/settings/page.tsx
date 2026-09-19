@@ -58,6 +58,20 @@ export default function SettingsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
   });
 
+  const [ispName, setIspName] = useState(current.ispName);
+  const [ispTagline, setIspTagline] = useState(current.ispTagline);
+  const [ispPhone, setIspPhone] = useState(current.ispPhone);
+  const [ispEmail, setIspEmail] = useState(current.ispEmail);
+  const [ispAddress, setIspAddress] = useState(current.ispAddress);
+  const [logoUrl, setLogoUrl] = useState(current.logoUrl);
+  const [currency, setCurrency] = useState(current.currency);
+  const [currencySymbol, setCurrencySymbol] = useState(current.currencySymbol);
+  const [currencyPosition, setCurrencyPosition] = useState<"before" | "after">(current.currencyPosition);
+  const [saving, setSaving] = useState(false);
+
+  // Sync state when settings load (first render may have defaults)
+  const [synced, setSynced] = useState(false);
+
   if (role === "staff") {
     return (
       <div className="flex items-center justify-center h-full">
@@ -77,19 +91,6 @@ export default function SettingsPage() {
     );
   }
 
-  const [ispName, setIspName] = useState(current.ispName);
-  const [ispTagline, setIspTagline] = useState(current.ispTagline);
-  const [ispPhone, setIspPhone] = useState(current.ispPhone);
-  const [ispEmail, setIspEmail] = useState(current.ispEmail);
-  const [ispAddress, setIspAddress] = useState(current.ispAddress);
-  const [logoUrl, setLogoUrl] = useState(current.logoUrl);
-  const [currency, setCurrency] = useState(current.currency);
-  const [currencySymbol, setCurrencySymbol] = useState(current.currencySymbol);
-  const [currencyPosition, setCurrencyPosition] = useState<"before" | "after">(current.currencyPosition);
-  const [saving, setSaving] = useState(false);
-
-  // Sync state when settings load (first render may have defaults)
-  const [synced, setSynced] = useState(false);
   if (!synced && current.ispName !== "My ISP") {
     setIspName(current.ispName);
     setIspTagline(current.ispTagline);

@@ -69,6 +69,7 @@ model Recharge {
   date       String
   note       String?
   paid       Boolean  @default(false)
+  amountPaid Float    @default(0)
 
   payments Payment[]
 
@@ -106,6 +107,7 @@ model Invoice {
   date       String
   note       String?
   paid       Boolean  @default(false)
+  amountPaid Float    @default(0)
 
   items    InvoiceItem[]
   payments Payment[]

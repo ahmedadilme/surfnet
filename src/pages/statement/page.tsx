@@ -29,8 +29,8 @@ export default function StatementPage() {
   });
 
   const totalBilled = recharges?.reduce((s, r) => s + r.amount, 0) ?? 0;
-  const totalPaid = recharges?.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0) ?? 0;
-  const balance = totalBilled - totalPaid;
+  const totalPaid = recharges?.reduce((s, r) => s + (r.amountPaid ?? 0), 0) ?? 0;
+  const balance = Math.round((totalBilled - totalPaid) * 100) / 100;
 
   const handleExport = async () => {
     if (!statementRef.current) return;
@@ -170,47 +170,55 @@ export default function StatementPage() {
                 No transactions yet
               </div>
             ) : (
-              recharges.map((r) => (
-                <div
-                  key={r._id}
-                  style={{
-                    background: "#fff",
-                    borderRadius: "18px",
-                    padding: "18px",
-                    marginBottom: "12px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: "16px", color: "#1a1a2e" }}>
-                      {formatDate(r.date)}
-                    </p>
-                    <p style={{ margin: "6px 0 0", fontSize: "14px", color: "#6b7280" }}>
-                      {r.package?.name ?? "-"}
-                    </p>
+              recharges.map((r) => {
+                  const isPartial = !r.paid && (r.amountPaid ?? 0) > 0;
+                  return (
+                  <div
+                    key={r._id}
+                    style={{
+                      background: "#fff",
+                      borderRadius: "18px",
+                      padding: "18px",
+                      marginBottom: "12px",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: "16px", color: "#1a1a2e" }}>
+                        {formatDate(r.date)}
+                      </p>
+                      <p style={{ margin: "6px 0 0", fontSize: "14px", color: "#6b7280" }}>
+                        {r.package?.name ?? "-"}
+                      </p>
+                      {isPartial && (
+                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#d97706", fontWeight: 700 }}>
+                          Paid {formatAmount(r.amountPaid ?? 0, settings)} · {formatAmount(r.remaining ?? 0, settings)} left
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: "18px", color: "#1a1a2e" }}>
+                        {formatAmount(r.amount, settings)}
+                      </p>
+                      <span style={{
+                        display: "inline-block",
+                        marginTop: "8px",
+                        padding: "6px 14px",
+                        borderRadius: "999px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        background: r.paid ? "#dcfce7" : isPartial ? "#e0e7ff" : "#fef3c7",
+                        color: r.paid ? "#16a34a" : isPartial ? "#4338ca" : "#d97706",
+                      }}>
+                        {r.paid ? "Paid" : isPartial ? "Partial" : "Unpaid"}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: "18px", color: "#1a1a2e" }}>
-                      {formatAmount(r.amount, settings)}
-                    </p>
-                    <span style={{
-                      display: "inline-block",
-                      marginTop: "8px",
-                      padding: "6px 14px",
-                      borderRadius: "999px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      background: r.paid ? "#dcfce7" : "#fef3c7",
-                      color: r.paid ? "#16a34a" : "#d97706",
-                    }}>
-                      {r.paid ? "Paid" : "Unpaid"}
-                    </span>
-                  </div>
-                </div>
-              ))
+                  );
+                })
             )}
           </div>
 
