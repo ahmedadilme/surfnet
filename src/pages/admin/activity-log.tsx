@@ -45,7 +45,7 @@ export function ActivityLogCard({
     queryFn: () => api.get("/activity"),
   });
 
-  const [userId, setUserId] = useState("");
+  const [userId, setUserId] = useState("__all__");
   const [group, setGroup] = useState("all");
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -61,7 +61,7 @@ export function ActivityLogCard({
     const q = search.toLowerCase();
     return items.filter((l: { userId?: string; action: string; detail?: string; createdAt: string }) => {
       const groupOf = l.action.split(".")[0];
-      if (userId && l.userId !== userId) return false;
+      if (userId !== "__all__" && l.userId !== userId) return false;
       if (group !== "all" && groupOf !== group) return false;
       if (dateFrom && l.createdAt.slice(0, 10) < dateFrom) return false;
       if (dateTo && l.createdAt.slice(0, 10) > dateTo) return false;
@@ -115,7 +115,7 @@ export function ActivityLogCard({
                 <SelectValue placeholder="All users" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" className="cursor-pointer">All users</SelectItem>
+                <SelectItem value="__all__" className="cursor-pointer">All users</SelectItem>
                 {users.map((u) => (
                   <SelectItem key={u._id} value={u._id} className="cursor-pointer">
                     {u.name ?? u.email ?? "Unknown"}
