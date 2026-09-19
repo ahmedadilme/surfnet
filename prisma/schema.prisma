@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String?  @unique
+  passwordHash String?
+  role         String   @default("staff")
+
+  customers  Customer[]
+  packages   Package[]
+  recharges  Recharge[]
+  payments   Payment[]
+  expenses   Expense[]
+  settings   Setting[]
+  invoices   Invoice[]
+  quotations Quotation[]
+}
+
+model Customer {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  username String
+  name     String
+  phone    String?
+  address  String?
+
+  recharges Recharge[]
+  payments  Payment[]
+  invoices  Invoice[]
+  quotations Quotation[]
+
+  @@unique([userId, username])
+  @@index([userId])
+}
+
+model Package {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  price        Float
+  speed        String?
+  durationDays Int
+  description  String?
+
+  recharges Recharge[]
+
+  @@index([userId])
+}
+
+model Recharge {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  packageId  String
+  package    Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  amount     Float
+  date       String
+  note       String?
+  paid       Boolean  @default(false)
+
+  payments Payment[]
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([customerId, paid])
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rechargeId String?
+  recharge   Recharge? @relation(fields: [rechargeId], references: [id], onDelete: SetNull)
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  amount     Float
+  date       String
+  note       String?
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([rechargeId])
+}
+
+model Invoice {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  number     String
+  date       String
+  note       String?
+  paid       Boolean  @default(false)
+
+  items    InvoiceItem[]
+  payments Payment[]
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([userId, paid])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+  amount      Float
+
+  @@index([invoiceId])
+}
+
+model Quotation {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  number     String
+  date       String
+  validUntil String?
+  note       String?
+  status     String   @default("pending")
+
+  items QuotationItem[]
+
+  @@index([userId])
+  @@index([customerId])
+}
+
+model QuotationItem {
+  id           String     @id @default(cuid())
+  quotationId  String
+  quotation    Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description  String
+  quantity     Int        @default(1)
+  unitPrice    Float
+  amount       Float
+
+  @@index([quotationId])
+}
+
+model Expense {
+  id          String @id @default(cuid())
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String
+  amount      Float
+  category    String
+  date        String
+  note        String?
+
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model Setting {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key    String
+  value  String
+
+  @@unique([userId, key])
+  @@index([userId, key])
+}
