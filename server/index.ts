@@ -10,6 +10,7 @@ import paymentRoutes from "./routes/payments";
 import expenseRoutes from "./routes/expenses";
 import invoiceRoutes from "./routes/invoices";
 import quotationRoutes from "./routes/quotations";
+import activityRoutes from "./routes/activity";
 import settingRoutes from "./routes/settings";
 
 const app = express();
@@ -45,6 +46,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/quotations", quotationRoutes);
+app.use("/api/activity", activityRoutes);
 app.use("/api/settings", settingRoutes);
 
 app.get("/api/health", (_req, res) => {

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = __importDefault(require("../db"));
 const auth_1 = require("../middleware/auth");
+const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 // Specific routes must come before /:id
 router.get("/stats/all", auth_1.requireAuth, async (req, res) => {
@@ -36,6 +37,7 @@ router.get("/monthly/all", auth_1.requireAuth, async (req, res) => {
 });
 router.post("/mark-many-paid", auth_1.requireAuth, async (req, res) => {
     const { rechargeIds, paymentDate, paymentNote } = req.body;
+    let count = 0;
     for (const id of rechargeIds) {
         const recharge = await db_1.default.recharge.findUnique({ where: { id } });
         if (!recharge || recharge.paid)
@@ -44,6 +46,10 @@ router.post("/mark-many-paid", auth_1.requireAuth, async (req, res) => {
         await db_1.default.payment.create({
             data: { userId: req.userId, customerId: recharge.customerId, rechargeId: id, amount: recharge.amount, date: paymentDate, note: paymentNote },
         });
+        count++;
+    }
+    if (count > 0) {
+        await (0, activity_1.logActivity)({ userId: req.userId, action: "recharge.marked_many_paid", entity: "recharge", detail: `${count} recharge(s) marked paid` });
     }
     res.json({ ok: true });
 });
@@ -75,6 +81,9 @@ router.post("/", auth_1.requireAuth, async (req, res) => {
     const recharge = await db_1.default.recharge.create({
         data: { userId: req.userId, customerId, packageId, amount, date, note, paid: false },
     });
+    const customer = await db_1.default.customer.findUnique({ where: { id: customerId }, select: { username: true } });
+    const pkg = await db_1.default.package.findUnique({ where: { id: packageId }, select: { name: true } });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "recharge.created", entity: "recharge", entityId: recharge.id, detail: `Recharge of ${amount} for ${customer?.username ?? customerId} (${pkg?.name ?? packageId}) recorded` });
     res.json(recharge);
 });
 router.put("/:id", auth_1.requireAuth, async (req, res) => {
@@ -83,10 +92,15 @@ router.put("/:id", auth_1.requireAuth, async (req, res) => {
         where: { id: req.params.id },
         data: { packageId, amount, date, note },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "recharge.updated", entity: "recharge", entityId: recharge.id, detail: `Recharge ${recharge.id} updated` });
     res.json(recharge);
 });
 router.delete("/:id", auth_1.requireAuth, async (req, res) => {
+    const recharge = await db_1.default.recharge.findUnique({ where: { id: req.params.id } });
     await db_1.default.recharge.delete({ where: { id: req.params.id } });
+    if (recharge) {
+        await (0, activity_1.logActivity)({ userId: req.userId, action: "recharge.deleted", entity: "recharge", entityId: recharge.id, detail: `Recharge ${recharge.id} deleted` });
+    }
     res.json({ ok: true });
 });
 router.post("/:id/mark-paid", auth_1.requireAuth, async (req, res) => {
@@ -100,6 +114,8 @@ router.post("/:id/mark-paid", auth_1.requireAuth, async (req, res) => {
     await db_1.default.payment.create({
         data: { userId: req.userId, customerId: recharge.customerId, rechargeId: recharge.id, amount: recharge.amount, date: paymentDate, note: paymentNote },
     });
+    const customer = await db_1.default.customer.findUnique({ where: { id: recharge.customerId }, select: { username: true } });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "recharge.marked_paid", entity: "recharge", entityId: recharge.id, detail: `Recharge of ${recharge.amount} for ${customer?.username ?? recharge.customerId} marked paid` });
     res.json({ ok: true });
 });
 exports.default = router;

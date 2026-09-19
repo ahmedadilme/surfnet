@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { hashPassword, verifyPassword, signToken } from "../auth";
 import { requireAuth, requireAdmin } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -28,6 +29,7 @@ router.post("/bootstrap", async (req: Request, res: Response) => {
   });
   const token = signToken({ userId: user.id, role: "admin" });
   res.cookie("token", token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 86400000 });
+  await logActivity({ userId: user.id, action: "system.bootstrap", entity: "auth", detail: `First admin account created (${email})` });
   res.json({ user, token });
 });
 
@@ -40,6 +42,7 @@ router.post("/sign-in", async (req: Request, res: Response) => {
   }
   const token = signToken({ userId: user.id, role: user.role });
   res.cookie("token", token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 86400000 });
+  await logActivity({ userId: user.id, action: "auth.sign_in", entity: "auth", detail: `${user.name ?? email} signed in` });
   res.json({ user, token });
 });
 
@@ -63,6 +66,7 @@ router.post("/create-user", requireAuth, requireAdmin, async (req: Request, res:
   const user = await prisma.user.create({
     data: { email, name, role, passwordHash },
   });
+  await logActivity({ userId: req.userId!, action: "auth.user_created", entity: "user", entityId: user.id, detail: `${role} account created: ${name ?? ""} (${email})` });
   res.json(user);
 });
 
@@ -71,7 +75,8 @@ router.delete("/:userId", requireAuth, requireAdmin, async (req: Request, res: R
     res.status(400).json({ error: "Cannot remove yourself" });
     return;
   }
-  await prisma.user.delete({ where: { id: req.params.userId } });
+  const removed = await prisma.user.delete({ where: { id: req.params.userId } });
+  await logActivity({ userId: req.userId!, action: "auth.user_deleted", entity: "user", entityId: req.params.userId, detail: `Account removed: ${removed.name ?? ""} (${removed.email ?? ""})` });
   res.json({ ok: true });
 });
 

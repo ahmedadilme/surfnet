@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { requireAuth } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -58,6 +59,7 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     },
     include: { customer: true, items: true },
   });
+  await logActivity({ userId: req.userId!, action: "quotation.created", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} created for ${quotation.customer?.username ?? quotation.customerId}` });
   res.json(quotation);
 });
 
@@ -85,11 +87,16 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     },
     include: { customer: true, items: true },
   });
+  await logActivity({ userId: req.userId!, action: "quotation.updated", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} updated` });
   res.json(quotation);
 });
 
 router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+  const quotation = await prisma.quotation.findUnique({ where: { id: req.params.id } });
   await prisma.quotation.delete({ where: { id: req.params.id } });
+  if (quotation) {
+    await logActivity({ userId: req.userId!, action: "quotation.deleted", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} deleted` });
+  }
   res.json({ ok: true });
 });
 
@@ -99,6 +106,7 @@ router.post("/:id/status", requireAuth, async (req: Request, res: Response) => {
     where: { id: req.params.id },
     data: { status },
   });
+  await logActivity({ userId: req.userId!, action: "quotation.status_changed", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} set to ${status}` });
   res.json(quotation);
 });
 

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = __importDefault(require("../db"));
 const auth_1 = require("../middleware/auth");
+const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 async function nextNumber(userId, seqKey, prefix) {
     const row = await db_1.default.setting.findUnique({ where: { userId_key: { userId, key: seqKey } } });
@@ -66,6 +67,8 @@ router.post("/", auth_1.requireAuth, async (req, res) => {
         },
         include: { customer: true, items: true },
     });
+    const total = invoice.items.reduce((s, i) => s + i.amount, 0);
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "invoice.created", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} (${total}) created for ${invoice.customer?.username ?? invoice.customerId}` });
     res.json(invoice);
 });
 router.put("/:id", auth_1.requireAuth, async (req, res) => {
@@ -90,10 +93,15 @@ router.put("/:id", auth_1.requireAuth, async (req, res) => {
         },
         include: { customer: true, items: true },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "invoice.updated", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} updated` });
     res.json(invoice);
 });
 router.delete("/:id", auth_1.requireAuth, async (req, res) => {
+    const invoice = await db_1.default.invoice.findUnique({ where: { id: req.params.id } });
     await db_1.default.invoice.delete({ where: { id: req.params.id } });
+    if (invoice) {
+        await (0, activity_1.logActivity)({ userId: req.userId, action: "invoice.deleted", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} deleted` });
+    }
     res.json({ ok: true });
 });
 router.post("/:id/mark-paid", auth_1.requireAuth, async (req, res) => {
@@ -119,6 +127,7 @@ router.post("/:id/mark-paid", auth_1.requireAuth, async (req, res) => {
             },
         }),
     ]);
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "invoice.marked_paid", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} marked paid` });
     res.json({ ok: true });
 });
 exports.default = router;

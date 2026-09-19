@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { requireAuth } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.post("/set-many", requireAuth, async (req: Request, res: Response) => {
       create: { userId: req.userId!, key, value },
     });
   }
+  await logActivity({ userId: req.userId!, action: "settings.updated", entity: "settings", detail: `Settings updated (${entries.length} key${entries.length === 1 ? "" : "s"}): ${entries.map((e: { key: string }) => e.key).join(", ")}` });
   res.json({ ok: true });
 });
 

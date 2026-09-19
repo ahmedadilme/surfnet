@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = __importDefault(require("../db"));
 const auth_1 = require("../middleware/auth");
+const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 const DEFAULTS = {
     ispName: "My ISP",
@@ -34,6 +35,7 @@ router.post("/set-many", auth_1.requireAuth, async (req, res) => {
             create: { userId: req.userId, key, value },
         });
     }
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "settings.updated", entity: "settings", detail: `Settings updated (${entries.length} key${entries.length === 1 ? "" : "s"}): ${entries.map((e) => e.key).join(", ")}` });
     res.json({ ok: true });
 });
 exports.default = router;

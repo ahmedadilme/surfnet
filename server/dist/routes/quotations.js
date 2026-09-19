@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const db_1 = __importDefault(require("../db"));
 const auth_1 = require("../middleware/auth");
+const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 async function nextNumber(userId, seqKey, prefix) {
     const row = await db_1.default.setting.findUnique({ where: { userId_key: { userId, key: seqKey } } });
@@ -60,6 +61,7 @@ router.post("/", auth_1.requireAuth, async (req, res) => {
         },
         include: { customer: true, items: true },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "quotation.created", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} created for ${quotation.customer?.username ?? quotation.customerId}` });
     res.json(quotation);
 });
 router.put("/:id", auth_1.requireAuth, async (req, res) => {
@@ -85,10 +87,15 @@ router.put("/:id", auth_1.requireAuth, async (req, res) => {
         },
         include: { customer: true, items: true },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "quotation.updated", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} updated` });
     res.json(quotation);
 });
 router.delete("/:id", auth_1.requireAuth, async (req, res) => {
+    const quotation = await db_1.default.quotation.findUnique({ where: { id: req.params.id } });
     await db_1.default.quotation.delete({ where: { id: req.params.id } });
+    if (quotation) {
+        await (0, activity_1.logActivity)({ userId: req.userId, action: "quotation.deleted", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} deleted` });
+    }
     res.json({ ok: true });
 });
 router.post("/:id/status", auth_1.requireAuth, async (req, res) => {
@@ -97,6 +104,7 @@ router.post("/:id/status", auth_1.requireAuth, async (req, res) => {
         where: { id: req.params.id },
         data: { status },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "quotation.status_changed", entity: "quotation", entityId: quotation.id, detail: `Quotation ${quotation.number} set to ${status}` });
     res.json(quotation);
 });
 exports.default = router;

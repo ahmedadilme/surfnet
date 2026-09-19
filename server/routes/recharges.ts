@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { requireAuth } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.get("/monthly/all", requireAuth, async (req: Request, res: Response) => {
 
 router.post("/mark-many-paid", requireAuth, async (req: Request, res: Response) => {
   const { rechargeIds, paymentDate, paymentNote } = req.body;
+  let count = 0;
   for (const id of rechargeIds) {
     const recharge = await prisma.recharge.findUnique({ where: { id } });
     if (!recharge || recharge.paid) continue;
@@ -40,6 +42,10 @@ router.post("/mark-many-paid", requireAuth, async (req: Request, res: Response) 
     await prisma.payment.create({
       data: { userId: req.userId!, customerId: recharge.customerId, rechargeId: id, amount: recharge.amount, date: paymentDate, note: paymentNote },
     });
+    count++;
+  }
+  if (count > 0) {
+    await logActivity({ userId: req.userId!, action: "recharge.marked_many_paid", entity: "recharge", detail: `${count} recharge(s) marked paid` });
   }
   res.json({ ok: true });
 });
@@ -75,6 +81,9 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
   const recharge = await prisma.recharge.create({
     data: { userId: req.userId!, customerId, packageId, amount, date, note, paid: false },
   });
+  const customer = await prisma.customer.findUnique({ where: { id: customerId }, select: { username: true } });
+  const pkg = await prisma.package.findUnique({ where: { id: packageId }, select: { name: true } });
+  await logActivity({ userId: req.userId!, action: "recharge.created", entity: "recharge", entityId: recharge.id, detail: `Recharge of ${amount} for ${customer?.username ?? customerId} (${pkg?.name ?? packageId}) recorded` });
   res.json(recharge);
 });
 
@@ -84,11 +93,16 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     where: { id: req.params.id },
     data: { packageId, amount, date, note },
   });
+  await logActivity({ userId: req.userId!, action: "recharge.updated", entity: "recharge", entityId: recharge.id, detail: `Recharge ${recharge.id} updated` });
   res.json(recharge);
 });
 
 router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+  const recharge = await prisma.recharge.findUnique({ where: { id: req.params.id } });
   await prisma.recharge.delete({ where: { id: req.params.id } });
+  if (recharge) {
+    await logActivity({ userId: req.userId!, action: "recharge.deleted", entity: "recharge", entityId: recharge.id, detail: `Recharge ${recharge.id} deleted` });
+  }
   res.json({ ok: true });
 });
 
@@ -100,6 +114,8 @@ router.post("/:id/mark-paid", requireAuth, async (req: Request, res: Response) =
   await prisma.payment.create({
     data: { userId: req.userId!, customerId: recharge.customerId, rechargeId: recharge.id, amount: recharge.amount, date: paymentDate, note: paymentNote },
   });
+  const customer = await prisma.customer.findUnique({ where: { id: recharge.customerId }, select: { username: true } });
+  await logActivity({ userId: req.userId!, action: "recharge.marked_paid", entity: "recharge", entityId: recharge.id, detail: `Recharge of ${recharge.amount} for ${customer?.username ?? recharge.customerId} marked paid` });
   res.json({ ok: true });
 });
 

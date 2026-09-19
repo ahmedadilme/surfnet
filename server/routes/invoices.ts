@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { requireAuth } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -64,6 +65,8 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     },
     include: { customer: true, items: true },
   });
+  const total = invoice.items.reduce((s, i) => s + i.amount, 0);
+  await logActivity({ userId: req.userId!, action: "invoice.created", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} (${total}) created for ${invoice.customer?.username ?? invoice.customerId}` });
   res.json(invoice);
 });
 
@@ -90,11 +93,16 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     },
     include: { customer: true, items: true },
   });
+  await logActivity({ userId: req.userId!, action: "invoice.updated", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} updated` });
   res.json(invoice);
 });
 
 router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+  const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });
   await prisma.invoice.delete({ where: { id: req.params.id } });
+  if (invoice) {
+    await logActivity({ userId: req.userId!, action: "invoice.deleted", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} deleted` });
+  }
   res.json({ ok: true });
 });
 
@@ -118,6 +126,7 @@ router.post("/:id/mark-paid", requireAuth, async (req: Request, res: Response) =
       },
     }),
   ]);
+  await logActivity({ userId: req.userId!, action: "invoice.marked_paid", entity: "invoice", entityId: invoice.id, detail: `Invoice ${invoice.number} marked paid` });
   res.json({ ok: true });
 });
 

@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Shield, UserPlus, Trash2 } from "lucide-react";
+import { ActivityLogCard } from "./activity-log.tsx";
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
@@ -173,6 +174,8 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
+
+      <ActivityLogCard users={users ?? []} />
     </div>
   );
 }

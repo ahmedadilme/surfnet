@@ -7,6 +7,7 @@ const express_1 = require("express");
 const db_1 = __importDefault(require("../db"));
 const auth_1 = require("../auth");
 const auth_2 = require("../middleware/auth");
+const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 router.get("/me", auth_2.requireAuth, async (req, res) => {
     const user = await db_1.default.user.findUnique({ where: { id: req.userId } });
@@ -29,6 +30,7 @@ router.post("/bootstrap", async (req, res) => {
     });
     const token = (0, auth_1.signToken)({ userId: user.id, role: "admin" });
     res.cookie("token", token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 86400000 });
+    await (0, activity_1.logActivity)({ userId: user.id, action: "system.bootstrap", entity: "auth", detail: `First admin account created (${email})` });
     res.json({ user, token });
 });
 router.post("/sign-in", async (req, res) => {
@@ -40,6 +42,7 @@ router.post("/sign-in", async (req, res) => {
     }
     const token = (0, auth_1.signToken)({ userId: user.id, role: user.role });
     res.cookie("token", token, { httpOnly: true, sameSite: "lax", maxAge: 7 * 86400000 });
+    await (0, activity_1.logActivity)({ userId: user.id, action: "auth.sign_in", entity: "auth", detail: `${user.name ?? email} signed in` });
     res.json({ user, token });
 });
 router.post("/sign-out", (_req, res) => {
@@ -59,6 +62,7 @@ router.post("/create-user", auth_2.requireAuth, auth_2.requireAdmin, async (req,
     const user = await db_1.default.user.create({
         data: { email, name, role, passwordHash },
     });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "auth.user_created", entity: "user", entityId: user.id, detail: `${role} account created: ${name ?? ""} (${email})` });
     res.json(user);
 });
 router.delete("/:userId", auth_2.requireAuth, auth_2.requireAdmin, async (req, res) => {
@@ -66,7 +70,8 @@ router.delete("/:userId", auth_2.requireAuth, auth_2.requireAdmin, async (req, r
         res.status(400).json({ error: "Cannot remove yourself" });
         return;
     }
-    await db_1.default.user.delete({ where: { id: req.params.userId } });
+    const removed = await db_1.default.user.delete({ where: { id: req.params.userId } });
+    await (0, activity_1.logActivity)({ userId: req.userId, action: "auth.user_deleted", entity: "user", entityId: req.params.userId, detail: `Account removed: ${removed.name ?? ""} (${removed.email ?? ""})` });
     res.json({ ok: true });
 });
 exports.default = router;

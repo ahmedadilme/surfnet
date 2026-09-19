@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../db";
 import { requireAuth } from "../middleware/auth";
+import { logActivity } from "../activity";
 
 const router = Router();
 
@@ -35,6 +36,7 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
   const expense = await prisma.expense.create({
     data: { userId: req.userId!, description, amount, category, date, note },
   });
+  await logActivity({ userId: req.userId!, action: "expense.created", entity: "expense", entityId: expense.id, detail: `Expense ${description} (${amount}) in ${category} recorded` });
   res.json(expense);
 });
 
@@ -44,11 +46,16 @@ router.put("/:id", requireAuth, async (req: Request, res: Response) => {
     where: { id: req.params.id },
     data: { description, amount, category, date, note },
   });
+  await logActivity({ userId: req.userId!, action: "expense.updated", entity: "expense", entityId: expense.id, detail: `Expense ${description} updated` });
   res.json(expense);
 });
 
 router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+  const expense = await prisma.expense.findUnique({ where: { id: req.params.id } });
   await prisma.expense.delete({ where: { id: req.params.id } });
+  if (expense) {
+    await logActivity({ userId: req.userId!, action: "expense.deleted", entity: "expense", entityId: expense.id, detail: `Expense ${expense.description} deleted` });
+  }
   res.json({ ok: true });
 });
 

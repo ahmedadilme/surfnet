@@ -15,6 +15,7 @@ const payments_1 = __importDefault(require("./routes/payments"));
 const expenses_1 = __importDefault(require("./routes/expenses"));
 const invoices_1 = __importDefault(require("./routes/invoices"));
 const quotations_1 = __importDefault(require("./routes/quotations"));
+const activity_1 = __importDefault(require("./routes/activity"));
 const settings_1 = __importDefault(require("./routes/settings"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
@@ -48,6 +49,7 @@ app.use("/api/payments", payments_1.default);
 app.use("/api/expenses", expenses_1.default);
 app.use("/api/invoices", invoices_1.default);
 app.use("/api/quotations", quotations_1.default);
+app.use("/api/activity", activity_1.default);
 app.use("/api/settings", settings_1.default);
 app.get("/api/health", (_req, res) => {
     res.json({ ok: true });

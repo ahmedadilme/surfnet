@@ -21,6 +21,7 @@ model User {
   settings   Setting[]
   invoices   Invoice[]
   quotations Quotation[]
+  activityLogs ActivityLog[]
 }
 
 model Customer {
@@ -179,4 +180,20 @@ model Setting {
 
   @@unique([userId, key])
   @@index([userId, key])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userLabel String?
+  action    String
+  entity    String
+  entityId  String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
