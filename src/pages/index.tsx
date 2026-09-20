@@ -65,7 +65,7 @@ export default function Index() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full" />
@@ -254,10 +254,10 @@ function StatCard({
   color: string;
 }) {
   return (
-    <Card>
-      <CardContent className="pt-5">
+    <Card className="min-w-0 overflow-hidden">
+      <CardContent className="pt-5 min-w-0">
         <div className={cn("mb-2", color)}>{icon}</div>
-        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-xl md:text-2xl font-bold break-words leading-tight">{value}</p>
         <p className="text-xs text-muted-foreground mt-1">{title}</p>
       </CardContent>
     </Card>

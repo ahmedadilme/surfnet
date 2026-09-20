@@ -146,17 +146,17 @@ export default function StatementPage() {
 
           {/* Summary */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "24px" }}>
-            <div style={{ background: "#f9fafb", borderRadius: "20px", padding: "20px", textAlign: "center" }}>
+            <div style={{ background: "#f9fafb", borderRadius: "20px", padding: "14px", textAlign: "center", overflow: "hidden", minWidth: 0 }}>
               <p style={{ fontSize: "11px", color: "#6b7280", margin: "0 0 6px 0" }}>Billed</p>
-              <p style={{ fontSize: "28px", fontWeight: 800, color: "#1a1a2e", margin: 0 }}>{formatAmount(totalBilled, settings)}</p>
+              <p style={{ fontSize: "20px", fontWeight: 800, color: "#1a1a2e", margin: 0, wordBreak: "break-word", lineHeight: 1.2 }}>{formatAmount(totalBilled, settings)}</p>
             </div>
-            <div style={{ background: "#f0fdf4", borderRadius: "20px", padding: "20px", textAlign: "center" }}>
+            <div style={{ background: "#f0fdf4", borderRadius: "20px", padding: "14px", textAlign: "center", overflow: "hidden", minWidth: 0 }}>
               <p style={{ fontSize: "11px", color: "#6b7280", margin: "0 0 6px 0" }}>Paid</p>
-              <p style={{ fontSize: "28px", fontWeight: 800, color: "#16a34a", margin: 0 }}>{formatAmount(totalPaid, settings)}</p>
+              <p style={{ fontSize: "20px", fontWeight: 800, color: "#16a34a", margin: 0, wordBreak: "break-word", lineHeight: 1.2 }}>{formatAmount(totalPaid, settings)}</p>
             </div>
-            <div style={{ background: balance > 0 ? "#fffbeb" : "#f0fdf4", borderRadius: "20px", padding: "20px", textAlign: "center" }}>
+            <div style={{ background: balance > 0 ? "#fffbeb" : "#f0fdf4", borderRadius: "20px", padding: "14px", textAlign: "center", overflow: "hidden", minWidth: 0 }}>
               <p style={{ fontSize: "11px", color: "#6b7280", margin: "0 0 6px 0" }}>Due</p>
-              <p style={{ fontSize: "28px", fontWeight: 800, color: balance > 0 ? "#d97706" : "#16a34a", margin: 0 }}>{formatAmount(balance, settings)}</p>
+              <p style={{ fontSize: "20px", fontWeight: 800, color: balance > 0 ? "#d97706" : "#16a34a", margin: 0, wordBreak: "break-word", lineHeight: 1.2 }}>{formatAmount(balance, settings)}</p>
             </div>
           </div>
 
