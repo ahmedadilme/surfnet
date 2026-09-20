@@ -13,6 +13,7 @@ import {
   Shield,
   FileText,
   FilePlus2,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useSettings } from "@/hooks/use-settings.ts";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { to: "/payments", label: "Payments", icon: CreditCard },
   { to: "/invoices", label: "Invoices", icon: FileText },
   { to: "/quotations", label: "Quotations", icon: FilePlus2 },
+  { to: "/reports", label: "Reports", icon: BarChart3 },
   { to: "/expenses", label: "Expenses", icon: Receipt },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/packages", label: "Packages", icon: Package },

@@ -9,6 +9,22 @@ const auth_1 = require("../middleware/auth");
 const activity_1 = require("../activity");
 const router = (0, express_1.Router)();
 const round = (n) => Math.round(n * 100) / 100;
+router.get("/", auth_1.requireAuth, async (req, res) => {
+    const payments = await db_1.default.payment.findMany({
+        where: { userId: req.userId },
+        include: {
+            customer: { select: { username: true, name: true } },
+            invoice: { select: { number: true } },
+            recharge: true,
+        },
+        orderBy: { date: "desc" },
+    });
+    res.json(payments.map((p) => ({
+        ...p,
+        type: p.invoice ? "Invoice" : "Recharge",
+        reference: p.invoice?.number ?? p.rechargeId,
+    })));
+});
 router.get("/customer/:customerId", auth_1.requireAuth, async (req, res) => {
     const payments = await db_1.default.payment.findMany({
         where: { customerId: req.params.customerId },

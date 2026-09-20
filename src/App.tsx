@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import { DefaultProviders } from "./components/providers/default.tsx";
 import { Spinner } from "./components/ui/spinner.tsx";
 import { useAuth } from "@/lib/auth-context.tsx";
@@ -19,6 +20,8 @@ import QuotationViewPage from "./pages/quotation/view.tsx";
 import SettingsPage from "./pages/settings/page.tsx";
 import AdminPage from "./pages/admin/page.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
+const ReportsPage = lazy(() => import("./pages/reports/page.tsx"));
 
 function AppContent() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -51,6 +54,7 @@ function AppContent() {
           <Route path="/invoice/:invoiceId" element={<InvoiceViewPage />} />
           <Route path="/quotations" element={<QuotationsPage />} />
           <Route path="/quotation/:quotationId" element={<QuotationViewPage />} />
+          <Route path="/reports" element={<Suspense fallback={<Spinner className="mx-auto mt-16 size-8" />}><ReportsPage /></Suspense>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
