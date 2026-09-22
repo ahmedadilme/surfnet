@@ -104,12 +104,12 @@ export function ActivityLogCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="relative w-full sm:w-56">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3">
+          <div className="relative w-full sm:w-56 min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input placeholder="Search activity..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
           </div>
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto sm:min-w-0">
             <Select value={userId} onValueChange={setUserId}>
               <SelectTrigger className="w-full sm:w-44 h-9 cursor-pointer">
                 <SelectValue placeholder="All users" />
@@ -137,7 +137,7 @@ export function ActivityLogCard({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto sm:min-w-0">
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-28 sm:w-36" placeholder="From" />
             <span className="text-xs text-muted-foreground">to</span>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-28 sm:w-36" placeholder="To" />

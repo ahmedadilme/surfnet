@@ -24,7 +24,7 @@ import { cn, todayISO } from "@/lib/utils.ts";
 import { useSettings, formatAmount } from "@/hooks/use-settings.ts";
 import { useNavigate } from "react-router-dom";
 
-function SearchableSelect<T extends { _id: string; label: string }>({
+function SearchableSelect<T extends { _id: string; label: string; keywords?: string[] }>({
   options,
   value,
   onChange,
@@ -65,6 +65,7 @@ function SearchableSelect<T extends { _id: string; label: string }>({
                 <CommandItem
                   key={option._id}
                   value={option._id}
+                  keywords={option.keywords}
                   onSelect={(currentValue) => {
                     onChange(currentValue === value ? "" : currentValue);
                     setOpen(false);
@@ -121,11 +122,13 @@ export default function RechargePage() {
   const customerOptions = (customers ?? []).map((c) => ({
     _id: c._id,
     label: `${c.username} — ${c.name}`,
+    keywords: [c.username, c.name].filter(Boolean),
   }));
 
   const packageOptions = (packages ?? []).map((p) => ({
     _id: p._id,
     label: `${p.name} — ${formatAmount(p.price, settings)} / ${p.durationDays}d`,
+    keywords: [p.name, String(p.durationDays)].filter(Boolean),
   }));
 
   const handleSubmit = async () => {
