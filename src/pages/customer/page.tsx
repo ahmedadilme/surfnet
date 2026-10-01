@@ -10,6 +10,7 @@ import {
   CreditCard,
   DollarSign,
   FileText,
+  List,
   Receipt,
   Search,
   Trash2,
@@ -65,6 +66,8 @@ type Payment = {
   note?: string | null;
   type: "Invoice" | "Recharge";
   reference?: string | null;
+  invoiceId?: string | null;
+  rechargeId?: string | null;
   user?: { name: string } | null;
 };
 
@@ -176,6 +179,20 @@ function OutstandingPill({ amount }: { amount: string }) {
   );
 }
 
+const TYPE_BADGE: Record<string, string> = {
+  Recharge: "bg-amber-50 text-amber-700",
+  Payment: "bg-green-50 text-green-700",
+  Invoice: "bg-indigo-50 text-indigo-700",
+};
+
+function TypeBadge({ kind, label }: { kind: string; label: string }) {
+  return (
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_BADGE[kind]}`}>
+      {label}
+    </span>
+  );
+}
+
 export default function CustomerPage() {
   const { customerId } = useParams<{ customerId: string }>();
   const navigate = useNavigate();
@@ -235,6 +252,11 @@ export default function CustomerPage() {
   const [rFrom, setRFrom] = useState("");
   const [rTo, setRTo] = useState("");
   const [rStatus, setRStatus] = useState(ALL);
+
+  const [aSearch, setASearch] = useState("");
+  const [aFrom, setAFrom] = useState("");
+  const [aTo, setATo] = useState("");
+  const [aType, setAType] = useState(ALL);
 
   const [pSearch, setPSearch] = useState("");
   const [pFrom, setPFrom] = useState("");
@@ -338,6 +360,60 @@ export default function CustomerPage() {
     if (iStatus === PAID && inv.remaining > 0) return false;
     if (iStatus === PARTIAL && !(isPartial(inv.paidAmount) && inv.remaining > 0)) return false;
     if (iStatus === OVERDUE && !(inv.remaining > 0 && isOverdue(inv.date))) return false;
+    return true;
+  });
+
+  const ledger = [
+    ...recharges.map((r) => ({
+      key: "recharge-" + r._id,
+      kind: "Recharge",
+      date: r.date,
+      title: r.package?.name ?? "Recharge",
+      subtitle: r.note ?? "",
+      amount: r.amount,
+      remaining: r.remaining ?? r.amount,
+      link: `/receipt/${r._id}`,
+    })),
+    ...payments.map((p) => ({
+      key: "payment-" + p._id,
+      kind: "Payment",
+      date: p.date,
+      title:
+        p.type === "Invoice"
+          ? "Invoice" + (p.reference ? ` ${p.reference}` : "")
+          : "Recharge" + (p.reference ? ` · ${p.reference}` : ""),
+      subtitle: p.note ?? "",
+      amount: p.amount,
+      remaining: 0,
+      link: p.invoiceId
+        ? `/invoice/${p.invoiceId}`
+        : p.rechargeId
+          ? `/receipt/${p.rechargeId}`
+          : undefined,
+    })),
+    ...invoices.map((inv) => ({
+      key: "invoice-" + inv._id,
+      kind: "Invoice",
+      date: inv.date,
+      title: inv.number,
+      subtitle: inv.note ?? "",
+      amount: inv.total,
+      remaining: inv.remaining,
+      link: `/invoice/${inv._id}`,
+    })),
+  ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  const aq = aSearch.toLowerCase();
+  const filteredLedger = ledger.filter((row) => {
+    if (aFrom && row.date < aFrom) return false;
+    if (aTo && row.date > aTo) return false;
+    if (
+      aq &&
+      !row.title.toLowerCase().includes(aq) &&
+      !row.subtitle.toLowerCase().includes(aq)
+    )
+      return false;
+    if (aType !== ALL && row.kind !== aType) return false;
     return true;
   });
 
@@ -496,8 +572,12 @@ export default function CustomerPage() {
         />
       </div>
 
-      <Tabs defaultValue="recharges">
-        <TabsList>
+      <Tabs defaultValue="all">
+        <TabsList className="w-full sm:w-fit overflow-x-auto">
+          <TabsTrigger value="all">
+            <List className="w-3.5 h-3.5" />
+            All ({ledger.length})
+          </TabsTrigger>
           <TabsTrigger value="recharges">
             <Zap className="w-3.5 h-3.5" />
             Recharges ({recharges.length})
@@ -511,6 +591,94 @@ export default function CustomerPage() {
             Invoices ({invoices.length})
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="all" className="space-y-4">
+          <FilterBar
+            search={aSearch}
+            onSearch={setASearch}
+            placeholder="Search by package, invoice, note..."
+            dateFrom={aFrom}
+            onDateFrom={setAFrom}
+            dateTo={aTo}
+            onDateTo={setATo}
+            count={filteredLedger.length}
+          >
+            <Select value={aType} onValueChange={setAType}>
+              <SelectTrigger className="w-full sm:w-44 h-9 cursor-pointer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All types</SelectItem>
+                <SelectItem value="Recharge">Recharges</SelectItem>
+                <SelectItem value="Payment">Payments</SelectItem>
+                <SelectItem value="Invoice">Invoices</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterBar>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                All Activity ({filteredLedger.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredLedger.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4 text-center">
+                  No activity found.
+                </p>
+              ) : (
+                <div className="divide-y">
+                  {filteredLedger.map((row) => (
+                    <div key={row.key} className="flex items-center justify-between py-3 px-4 gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{row.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(row.date)}
+                          {row.subtitle ? ` · ${row.subtitle}` : ""}
+                          {row.remaining > 0 && isOverdue(row.date) && (
+                            <span className="ml-2 text-amber-600 font-medium">Overdue</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 sm:gap-3 flex-wrap justify-end shrink-0">
+                        <TypeBadge kind={row.kind} label={row.kind} />
+                        {row.kind === "Payment" ? (
+                          <span className="font-bold text-green-600">
+                            +{formatAmount(row.amount, settings)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {formatAmount(row.amount, settings)}
+                          </span>
+                        )}
+                        {row.kind !== "Payment" &&
+                          (row.remaining > 0 ? (
+                            <OutstandingPill amount={formatAmount(row.remaining, settings)} />
+                          ) : (
+                            <PaidPill />
+                          ))}
+                        {row.link && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="cursor-pointer"
+                            onClick={() => navigate(row.link!)}
+                          >
+                            <FileText className="w-3 h-3 sm:mr-1" />
+                            <span className="hidden sm:inline">
+                              {row.kind === "Payment" ? "Source" : "View"}
+                            </span>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="recharges" className="space-y-4">
           <FilterBar
