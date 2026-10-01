@@ -68,7 +68,7 @@ router.post("/mark-many-paid", auth_1.requireAuth, async (req, res) => {
 });
 router.get("/customer/:customerId", auth_1.requireAuth, async (req, res) => {
     const recharges = await db_1.default.recharge.findMany({
-        where: { customerId: req.params.customerId },
+        where: { customerId: req.params.customerId, userId: req.userId },
         include: { package: true },
         orderBy: { date: "desc" },
     });

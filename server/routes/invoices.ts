@@ -44,6 +44,15 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
   res.json(invoices.map((inv) => ({ ...inv, ...invoiceTotals(inv) })));
 });
 
+router.get("/customer/:customerId", requireAuth, async (req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { customerId: req.params.customerId, userId: req.userId },
+    include: { customer: true, items: true },
+    orderBy: { date: "desc" },
+  });
+  res.json(invoices.map((inv) => ({ ...inv, ...invoiceTotals(inv) })));
+});
+
 router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   const invoice = await prisma.invoice.findUnique({
     where: { id: req.params.id },

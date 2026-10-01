@@ -16,7 +16,7 @@ router.get("/", auth_1.requireAuth, async (req, res) => {
     res.json(customers);
 });
 router.get("/:id", auth_1.requireAuth, async (req, res) => {
-    const customer = await db_1.default.customer.findUnique({ where: { id: req.params.id } });
+    const customer = await db_1.default.customer.findFirst({ where: { id: req.params.id, userId: req.userId } });
     res.json(customer);
 });
 router.post("/", auth_1.requireAuth, async (req, res) => {

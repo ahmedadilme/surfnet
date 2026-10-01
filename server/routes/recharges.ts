@@ -67,7 +67,7 @@ router.post("/mark-many-paid", requireAuth, async (req: Request, res: Response) 
 
 router.get("/customer/:customerId", requireAuth, async (req: Request, res: Response) => {
   const recharges = await prisma.recharge.findMany({
-    where: { customerId: req.params.customerId },
+    where: { customerId: req.params.customerId, userId: req.userId },
     include: { package: true },
     orderBy: { date: "desc" },
   });

@@ -14,7 +14,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 });
 
 router.get("/:id", requireAuth, async (req: Request, res: Response) => {
-  const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
+  const customer = await prisma.customer.findFirst({ where: { id: req.params.id, userId: req.userId } });
   res.json(customer);
 });
 

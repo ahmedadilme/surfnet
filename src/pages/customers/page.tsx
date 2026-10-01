@@ -14,7 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, FileText, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, AlertCircle, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSettings, formatAmount } from "@/hooks/use-settings.ts";
 
@@ -152,6 +152,13 @@ export default function CustomersPage() {
                       onClick={() => navigate(`/statement/${c._id}`)}
                     >
                       <FileText className="w-3 h-3 mr-1" /> Statement
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/customers/${c._id}`)}
+                    >
+                      <Users className="w-3 h-3 mr-1" /> Details
                     </Button>
                     <Button size="icon" variant="ghost" className="cursor-pointer" onClick={() => openEdit(c)}>
                       <Pencil className="w-4 h-4" />

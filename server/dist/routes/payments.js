@@ -27,10 +27,19 @@ router.get("/", auth_1.requireAuth, async (req, res) => {
 });
 router.get("/customer/:customerId", auth_1.requireAuth, async (req, res) => {
     const payments = await db_1.default.payment.findMany({
-        where: { customerId: req.params.customerId },
+        where: { customerId: req.params.customerId, userId: req.userId },
+        include: {
+            invoice: { select: { number: true } },
+            recharge: { select: { package: { select: { name: true } } } },
+            user: { select: { name: true } },
+        },
         orderBy: { date: "desc" },
     });
-    res.json(payments);
+    res.json(payments.map((p) => ({
+        ...p,
+        type: p.invoice ? "Invoice" : "Recharge",
+        reference: p.invoice?.number ?? p.recharge?.package?.name ?? null,
+    })));
 });
 router.delete("/:id", auth_1.requireAuth, async (req, res) => {
     const payment = await db_1.default.payment.findUnique({

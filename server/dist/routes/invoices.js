@@ -43,6 +43,14 @@ router.get("/", auth_1.requireAuth, async (req, res) => {
     });
     res.json(invoices.map((inv) => ({ ...inv, ...invoiceTotals(inv) })));
 });
+router.get("/customer/:customerId", auth_1.requireAuth, async (req, res) => {
+    const invoices = await db_1.default.invoice.findMany({
+        where: { customerId: req.params.customerId, userId: req.userId },
+        include: { customer: true, items: true },
+        orderBy: { date: "desc" },
+    });
+    res.json(invoices.map((inv) => ({ ...inv, ...invoiceTotals(inv) })));
+});
 router.get("/:id", auth_1.requireAuth, async (req, res) => {
     const invoice = await db_1.default.invoice.findUnique({
         where: { id: req.params.id },

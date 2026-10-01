@@ -7,6 +7,7 @@ import AppLayout from "./pages/AppLayout.tsx";
 import SignIn from "./pages/auth/SignIn.tsx";
 import Index from "./pages/index.tsx";
 import CustomersPage from "./pages/customers/page.tsx";
+import CustomerPage from "./pages/customer/page.tsx";
 import PackagesPage from "./pages/packages/page.tsx";
 import RechargePage from "./pages/recharge/page.tsx";
 import PaymentsPage from "./pages/payments/page.tsx";
@@ -44,6 +45,7 @@ function AppContent() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Index />} />
           <Route path="/customers" element={<CustomersPage />} />
+          <Route path="/customers/:customerId" element={<CustomerPage />} />
           <Route path="/packages" element={<PackagesPage />} />
           <Route path="/recharge" element={<RechargePage />} />
           <Route path="/payments" element={<PaymentsPage />} />
