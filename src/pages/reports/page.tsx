@@ -6,18 +6,48 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { toast } from "sonner";
-import { BarChart3, Download, FileDown, ChevronDown } from "lucide-react";
-import { formatDate, todayISO, downloadCSV } from "@/lib/utils.ts";
+import {
+  BarChart3,
+  ChevronDown,
+  Download,
+  FileDown,
+  Search,
+  Zap,
+} from "lucide-react";
+import {
+  formatDate,
+  formatDateTime,
+  todayISO,
+  downloadCSV,
+} from "@/lib/utils.ts";
 import { useSettings, formatAmount } from "@/hooks/use-settings.ts";
 import { downloadPDF } from "@/lib/export-pdf.ts";
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
+const ALL = "all";
+const PAID = "paid";
+const UNPAID = "unpaid";
+const PARTIAL = "partial";
+
 function inRange(date: string, from: string, to: string): boolean {
   if (from && date < from) return false;
   if (to && date > to) return false;
   return true;
+}
+
+// Recharge.date is a plain YYYY-MM-DD string, but tolerate values that carry a time.
+function formatStamp(value: string): string {
+  return value.length > 10 ? formatDateTime(value) : formatDate(value);
 }
 
 type LedgerRow = {
@@ -39,6 +69,14 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [exportingPdf, setExportingPdf] = useState(false);
+
+  const [rDateFrom, setRDateFrom] = useState("");
+  const [rDateTo, setRDateTo] = useState("");
+  const [rSearch, setRSearch] = useState("");
+  const [rCustomer, setRCustomer] = useState(ALL);
+  const [rPackage, setRPackage] = useState(ALL);
+  const [rStatus, setRStatus] = useState(ALL);
+  const [rExportingPdf, setRExportingPdf] = useState(false);
 
   const ready = recharges !== undefined && invoices !== undefined && expenses !== undefined && payments !== undefined;
 
@@ -110,6 +148,49 @@ export default function ReportsPage() {
 
   const rangeLabel = dateFrom || dateTo ? `${dateFrom || "—"} to ${dateTo || "—"}` : "All time";
 
+  const rRangeLabel = rDateFrom || rDateTo ? `${rDateFrom || "—"} to ${rDateTo || "—"}` : "All time";
+
+  const rCustomerOptions = Array.from(
+    new Set<string>((recharges ?? []).map((r) => r.customer?.username ?? "").filter(Boolean))
+  ).sort();
+  const rPackageOptions = Array.from(
+    new Set<string>((recharges ?? []).map((r) => r.package?.name ?? "").filter(Boolean))
+  ).sort();
+
+  const rq = rSearch.toLowerCase();
+  const rechargeRows = (recharges ?? [])
+    .filter((r) => {
+      const remaining = r.remaining ?? r.amount;
+      if (!inRange(r.date, rDateFrom, rDateTo)) return false;
+      if (rCustomer !== ALL && r.customer?.username !== rCustomer) return false;
+      if (rPackage !== ALL && r.package?.name !== rPackage) return false;
+      if (rStatus === PAID && remaining > 0) return false;
+      if (rStatus === UNPAID && remaining <= 0) return false;
+      if (rStatus === PARTIAL && !((r.amountPaid ?? 0) > 0 && remaining > 0)) return false;
+      if (
+        rq &&
+        !`${r.customer?.username ?? ""} ${r.customer?.name ?? ""} ${r.package?.name ?? ""} ${r.note ?? ""}`
+          .toLowerCase()
+          .includes(rq)
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const rechargeTotal = round(rechargeRows.reduce((s, r) => s + r.amount, 0));
+  const rechargePaid = round(rechargeRows.reduce((s, r) => s + (r.amountPaid ?? 0), 0));
+  const rechargeOutstanding = round(
+    rechargeRows.reduce((s, r) => s + (r.remaining ?? r.amount), 0)
+  );
+
+  const rechargeSummaryTiles = [
+    { label: "Total (Filtered)", value: formatAmount(rechargeTotal, settings), color: "text-primary" },
+    { label: "Recharges", value: String(rechargeRows.length), color: "text-muted-foreground" },
+    { label: "Total Paid", value: formatAmount(rechargePaid, settings), color: "text-green-600" },
+    { label: "Outstanding", value: formatAmount(rechargeOutstanding, settings), color: "text-amber-500" },
+  ];
+
   const summaryTiles = [
     { label: "Total Billed", value: formatAmount(billed, settings), color: "text-primary" },
     { label: "Total Collected", value: formatAmount(collected, settings), color: "text-green-600" },
@@ -170,6 +251,58 @@ export default function ReportsPage() {
     }
   };
 
+  const handleRechargeCsv = () => {
+    if (rechargeRows.length === 0) {
+      toast.info("Nothing to export for the selected filters");
+      return;
+    }
+    downloadCSV(
+      rechargeRows.map((r) => ({
+        Username: r.customer?.username ?? "—",
+        Name: r.customer?.name ?? "—",
+        Package: r.package?.name ?? "—",
+        Date: r.date,
+        Price: r.amount,
+      })),
+      `recharge-report-${todayISO()}.csv`
+    );
+  };
+
+  const handleRechargePdf = () => {
+    if (rechargeRows.length === 0) {
+      toast.info("Nothing to export for the selected filters");
+      return;
+    }
+    setRExportingPdf(true);
+    try {
+      downloadPDF({
+        title: `${settings.ispName} — Recharge Report`,
+        subtitle: `Generated ${formatDate(todayISO())} · ${rRangeLabel}`,
+        summary: rechargeSummaryTiles.map((t) => ({ label: t.label, value: t.value })),
+        columns: [
+          { header: "Username", dataKey: "username" },
+          { header: "Name", dataKey: "name" },
+          { header: "Package", dataKey: "package" },
+          { header: "Date", dataKey: "date" },
+          { header: "Price", dataKey: "price" },
+        ],
+        rows: rechargeRows.map((r) => ({
+          username: r.customer?.username ?? "—",
+          name: r.customer?.name ?? "—",
+          package: r.package?.name ?? "—",
+          date: formatStamp(r.date),
+          price: formatAmount(r.amount, settings),
+        })),
+        filename: `recharge-report-${todayISO()}.pdf`,
+      });
+      toast.success("Recharge report exported as PDF!");
+    } catch {
+      toast.error("Failed to export PDF");
+    } finally {
+      setRExportingPdf(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div>
@@ -177,6 +310,19 @@ export default function ReportsPage() {
         <p className="text-muted-foreground text-sm mt-1">Revenue and collections overview</p>
       </div>
 
+      <Tabs defaultValue="revenue">
+        <TabsList>
+          <TabsTrigger value="revenue">
+            <BarChart3 className="w-3.5 h-3.5" />
+            Revenue
+          </TabsTrigger>
+          <TabsTrigger value="recharges">
+            <Zap className="w-3.5 h-3.5" />
+            Recharge Report
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="revenue" className="space-y-6">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
         <div className="space-y-1.5">
@@ -298,6 +444,183 @@ export default function ReportsPage() {
           </Card>
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="recharges" className="space-y-6">
+          {/* Filters */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-end gap-3">
+            <div className="relative w-full lg:w-64">
+              <Label className="text-xs">Search</Label>
+              <Search className="absolute left-2.5 top-[1.4rem] -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Username, name, package, note..."
+                value={rSearch}
+                onChange={(e) => setRSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">From</Label>
+              <Input
+                type="date"
+                value={rDateFrom}
+                onChange={(e) => setRDateFrom(e.target.value)}
+                className="w-28 sm:w-36"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">To</Label>
+              <Input
+                type="date"
+                value={rDateTo}
+                onChange={(e) => setRDateTo(e.target.value)}
+                className="w-28 sm:w-36"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Customer</Label>
+              <Select value={rCustomer} onValueChange={setRCustomer}>
+                <SelectTrigger className="w-full sm:w-44 h-9 cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All customers</SelectItem>
+                  {rCustomerOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Package</Label>
+              <Select value={rPackage} onValueChange={setRPackage}>
+                <SelectTrigger className="w-full sm:w-44 h-9 cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All packages</SelectItem>
+                  {rPackageOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select value={rStatus} onValueChange={setRStatus}>
+                <SelectTrigger className="w-full sm:w-44 h-9 cursor-pointer">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All statuses</SelectItem>
+                  <SelectItem value={UNPAID}>Unpaid</SelectItem>
+                  <SelectItem value={PARTIAL}>Partially paid</SelectItem>
+                  <SelectItem value={PAID}>Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="lg:ml-auto flex gap-2">
+              <Button variant="outline" className="cursor-pointer" onClick={handleRechargeCsv}>
+                <Download className="w-4 h-4 mr-2" /> CSV
+              </Button>
+              <Button
+                className="cursor-pointer"
+                onClick={handleRechargePdf}
+                disabled={rExportingPdf}
+              >
+                <FileDown className="w-4 h-4 mr-2" />{" "}
+                {rExportingPdf ? "Exporting..." : "PDF"}
+              </Button>
+            </div>
+          </div>
+
+          {recharges === undefined ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Summary tiles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {rechargeSummaryTiles.map((t) => (
+                  <Card key={t.label} className="min-w-0 overflow-hidden">
+                    <CardContent className="pt-5 min-w-0">
+                      <BarChart3 className={t.color} />
+                      <p className="text-xl md:text-2xl font-bold break-words leading-tight mt-2">
+                        {t.value}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">{t.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Recharge table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Recharges ({rechargeRows.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {rechargeRows.length === 0 ? (
+                    <p className="text-muted-foreground text-sm py-4 text-center">
+                      No recharges match the selected filters.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-left text-xs text-muted-foreground">
+                            <th className="py-2 pr-4 font-medium">Username</th>
+                            <th className="py-2 pr-4 font-medium">Name</th>
+                            <th className="py-2 pr-4 font-medium">Package Name</th>
+                            <th className="py-2 pr-4 font-medium">Date</th>
+                            <th className="py-2 font-medium text-right">Price</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {rechargeRows.map((r, idx) => (
+                            <tr key={idx} className="whitespace-nowrap">
+                              <td className="py-2 pr-4 font-medium">
+                                {r.customer?.username ?? "—"}
+                              </td>
+                              <td className="py-2 pr-4">{r.customer?.name || "—"}</td>
+                              <td className="py-2 pr-4 text-muted-foreground">
+                                {r.package?.name ?? "—"}
+                              </td>
+                              <td className="py-2 pr-4 text-muted-foreground">
+                                {formatStamp(r.date)}
+                              </td>
+                              <td className="py-2 text-right font-semibold">
+                                {formatAmount(r.amount, settings)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t">
+                            <td className="py-2 pr-4 font-semibold" colSpan={4}>
+                              Total ({rechargeRows.length} recharges)
+                            </td>
+                            <td className="py-2 text-right font-bold">
+                              {formatAmount(rechargeTotal, settings)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
